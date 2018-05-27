@@ -26,19 +26,14 @@ internal CurveCollection curveCollection(std::vector<std::vector<v3>> curvePop,
             totalIndex++;
         }
     }
-    out.curvePointTree = (KDTree*)malloc(sizeof(KDTree));
-    
-    buildWholeTree(num, pointsBuffer, 0, out.curvePointTree);
-    v3 n = nearestNeighbour(out.curvePointTree, vec3(0,0,0));
+    out.curvePointTree = KDTree(num, pointsBuffer);
     for(int i = 0; i < curvePop.size(); i++)
     {
         for (int j = 0; j < curvePop[i].size(); j++)
         {
-            
             int* tempArray = (int* )malloc(sizeof(int)*2);
             tempArray[0] = i;
             tempArray[1] = j;
-            //std::pair<v3, int[]> pair (curvePop[i][j], tempArray);
             auto p = std::make_pair(curvePop[i][j], tempArray);
             map->insert(p);
         }
@@ -138,7 +133,9 @@ v3 lineCP2(v3 A, v3 B, v3 P)
 
 internal f32 getDistFromCurve(CurveCollection c, v3 p)
 {
-    v3 cp = nearestNeighbour(c.curvePointTree, p);
+    Best b = best(NULL, FLT_MAX);
+    nearestNeighbour(&p, c.curvePointTree, &b);
+    v3 cp = b.n->value;
     int* indices = c.map->at(cp);
     int i = indices[0];
     int j = indices[1];
@@ -146,21 +143,21 @@ internal f32 getDistFromCurve(CurveCollection c, v3 p)
     {
         //check only index before
         v3 cp2 = c.curvePop[i][j-1];
-        return dist(lineCP2(cp, cp2, p), p);
+        return distSq(lineCP2(cp, cp2, p), p);
     }
     else if (j == 0)
     {
         //check only index after
         v3 cp2 = c.curvePop[i][j+1];
-        return dist(lineCP2(cp, cp2, p), p);
+        return distSq(lineCP2(cp, cp2, p), p);
     }
     else
     {
         //check both indices
         v3 candidate1 = c.curvePop[i][j+1];
         v3 candidate2 = c.curvePop[i][j-1];
-        f32 dist1 = dist(candidate1, p);
-        f32 dist2 = dist(candidate2, p);
+        f32 dist1 = distSq(candidate1, p);
+        f32 dist2 = distSq(candidate2, p);
         v3 cp2;
         if (dist1 < dist2)
         {
@@ -170,6 +167,6 @@ internal f32 getDistFromCurve(CurveCollection c, v3 p)
         {
             cp2 = candidate2;
         }
-        return dist(lineCP2(cp, cp2, p), p);
+        return distSq(lineCP2(cp, cp2, p), p);
     }
 }

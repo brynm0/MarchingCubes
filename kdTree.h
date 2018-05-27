@@ -7,13 +7,12 @@
    $Notice: (C) Copyright 2018 All Rights Reserved. $
    ======================================================================== */
 
-struct KDTree
+struct Node
 {
     int depth;
-    f32 axisLocation;
-    KDTree* leftChild;
-    KDTree* rightChild;
-    v3* value;
+    Node* leftChild;
+    Node* rightChild;
+    v3 value;
 };
 
 #define KDTREE_H

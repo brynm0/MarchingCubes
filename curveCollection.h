@@ -14,7 +14,7 @@
 
 struct CurveCollection
 {
-    KDTree* curvePointTree;
+    Node* curvePointTree;
     std::unordered_map<v3, int*, v3Hash>* map;
     std::vector<std::vector<v3>> curvePop;
 };

@@ -54,11 +54,5 @@ struct GridCell
     f32 val[8];
 };
 
-inline v3 vec3(f32 x, f32 y, f32 z)
-{
-    v3 out = {x, y, z};
-    return out;
-}
-
 #define MARCHINGCUBES_H
 #endif

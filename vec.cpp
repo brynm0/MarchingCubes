@@ -9,6 +9,12 @@
 #include "vec.h"
 #include <math.h>
 
+internal inline v3 vec3(f32 x, f32 y, f32 z)
+{
+    v3 out = {x, y, z};
+    return out;
+}
+
 internal inline v3 operator*(float b, const v3& a)
 {
     return vec3(b * a.x, b * a.y, b * a.z);
@@ -42,10 +48,17 @@ internal inline bool operator==(const v3& a, const v3& b)
     return (a.x == b.x && a.y == b.y && a.z == b.z);
 }
 
+internal float distSq(v3 first, v3 second)
+{
+    return (second.x - first.x)*(second.x - first.x) + (second.y - first.y)*(second.y - first.y) + (second.z - first.z)*(second.z - first.z);
+}
+
+
 internal float dist(v3 first, v3 second)
 {
-    return sqrtf((second.x - first.x)*(second.x - first.x) + (second.y - first.y)*(second.y - first.y) + (second.z - first.z)*(second.z - first.z));
+    return sqrtf(distSq(first, second));
 }
+
 internal float dot(v3 first, v3 second)
 {
     return (first.x * second.x + first.y + second.y + first.z + second.z);

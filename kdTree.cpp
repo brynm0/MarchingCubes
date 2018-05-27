@@ -10,24 +10,12 @@
 #include <algorithm>
 #include <float.h>
 #include <math.h>
+#include <cstring>
+#include <string>
 
-internal void kdTree(v3* point, int _depth, KDTree* out)
+internal inline f32 fDist(f32 A, f32 B)
 {
-    *out = {};
-    out->value = point;
-    out->depth = _depth;
-    if (out->depth % 3 == 0)
-    {
-        out->axisLocation = out->value->x;
-    }
-    else if (out->depth % 3 == 1)
-    {
-        out->axisLocation = out->value->y;
-    }
-    else if (out->depth % 3 == 2)
-    {
-        out->axisLocation = out->value->z;
-    }
+    return (B-A)*(B-A);
 }
 
 internal bool xComparator(v3 A, v3 B)
@@ -42,238 +30,225 @@ internal bool zComparator(v3 A, v3 B)
 {
     return B.z > A.z;
 }
-internal void buildWholeTree(int numPts, v3 points[], int _depth, KDTree* out)
+
+internal Node* node(int depth,
+                   Node* leftChild,
+                   Node* rightChild,
+                   v3 value)
 {
-    out->depth = _depth;
-    out->value = nullptr;
-    int axis = out->depth % 3;
-    //x == 0, y == 1, z == 2
-    float median;
-    if (axis == 0)
-    {
-        std::sort(points, points + numPts, xComparator);
-        
-        if (numPts > 2)
-        {
-            median = points[(numPts / 2)].x;
-
-        }
-        else
-        {
-            assert(numPts == 2);
-            median = points[0].x + points[1].x;
-            median = median / 2;
-
-        }
-        
-        
-    }
-    else if (axis == 1)
-    {
-        std::sort(points, points + numPts, yComparator);
-        if (numPts > 2)
-        {
-            
-            median = points[(numPts / 2)].y;
-        }
-        else
-        {
-            assert(numPts == 2);
-            median = points[0].y + points[1].y;
-            median = median / 2;
-            
-        }
-        
-        
-    }
-    else
-    {
-        std::sort(points, points + numPts, zComparator);
-        if (numPts > 2)
-        {
-            
-            median = points[(numPts / 2)].z;
-        }
-        else
-        {
-            assert(numPts == 2);
-            median = points[0].z + points[1].z;
-            median = median / 2;
-            
-        }
-    }
-    out->axisLocation = median;
-    if (numPts == 2)
-    {
-        out->leftChild = (KDTree*)malloc(sizeof(KDTree));
-        out->rightChild = (KDTree*)malloc(sizeof(KDTree));
-        v3* p1 = (v3* )malloc(sizeof(v3));
-        *p1 = points[0];
-        v3* p2 = (v3* )malloc(sizeof(v3));
-        *p2 = points[1];
-        
-        kdTree(p1, out->depth + 1, out->leftChild);
-        kdTree(p2, out->depth + 1, out->rightChild);
-        
-    }
-    else if (numPts == 3)
-    {
-        v3 tempArray[] = {points[0], points[1]}; 
-        KDTree* lChild = (KDTree*)malloc(sizeof(KDTree));
-        KDTree* rChild = (KDTree*)malloc(sizeof(KDTree));
-        out->leftChild = lChild;
-        out->rightChild = rChild;
-        v3* p1 = (v3* )malloc(sizeof(v3));
-        *p1 = points[2];
-        
-        assert(!isnan(points[2].x && !isnan(points[2].y) && !isnan(points[2].z)));
-        buildWholeTree(2, tempArray, out->depth + 1, out->leftChild);
-        kdTree(p1, out->depth + 1, out->rightChild);
-    }
-    else
-    {
-        //use memcpy
-        unsigned int lNum = (numPts/2);
-        
-        v3 leftList[lNum];
-        unsigned int rNum;
-        if (!(numPts % 2 == 0))
-        {
-           rNum = (numPts/2) + 1;
-        }
-        else
-        {
-            rNum = lNum;
-        }
-        v3 rightList[rNum];
-        memcpy(leftList, points, sizeof(v3) * lNum);
-        memcpy(rightList, &points[(numPts / 2)], sizeof(v3) * rNum);
-        KDTree* lChild = (KDTree*)malloc(sizeof(KDTree));
-        KDTree* rChild = (KDTree*)malloc(sizeof(KDTree));
-        out->leftChild = lChild;
-        out->rightChild = rChild;
-        buildWholeTree(lNum, leftList,  out->depth + 1, out->leftChild);
-        buildWholeTree(rNum, rightList, out->depth + 1, out->rightChild);
-        
-    }
+    
+    Node* out = (Node* )malloc(sizeof(Node));
+    out->depth = depth;
+    out->leftChild = leftChild;
+    out->rightChild = rightChild;
+    out->value = value;
+    return out;
 }
 
-internal v3 nearestNeighbour(KDTree* tree, v3 point, v3 currentBest = vec3(FLT_MAX, FLT_MAX, FLT_MAX))
+internal Node* KDTree(int numPts,
+                      v3* points,
+                      int depth = 0)
 {
-    b32 left = false;
-    b32 right = false;
-    if (tree->value != 0x0 && !(*tree->value == point) && currentBest == vec3(FLT_MAX, FLT_MAX, FLT_MAX))
+    if(numPts == 1)
     {
-        currentBest = *tree->value;
+        return node(depth+1, NULL, NULL, points[0]);
     }
-    else if (tree->value != 0x0 && !(*tree->value == point))
+    switch (depth % 3)
     {
-        if (dist(currentBest, point) > dist(*tree->value, point))
-        {
-            currentBest = *tree->value;
-        }
+        case 0:
+            std::sort(points, points+numPts, xComparator);
+            break;
+        case 1:
+            std::sort(points, points+numPts, yComparator);
+            break;
+        case 2:
+            std::sort(points, points+numPts, zComparator);
+            break;
+    }
+    int median;
+    int lNum;
+    int rNum;
+    if (numPts % 2 == 1)
+    {
+        median = (numPts / 2) + 1;
+        lNum = numPts / 2;
+        rNum = numPts / 2;
     }
     else
     {
-        if (tree->depth % 3 == 0)
-        {
-            //x
-            if (point.x <= tree->axisLocation && tree->leftChild != nullptr)
-            {
-                currentBest = nearestNeighbour(tree->leftChild, point, currentBest);
-                left = true;
-               
-            }
-            else if (tree->rightChild != nullptr)
-            {
-                currentBest = nearestNeighbour(tree->rightChild, point, currentBest);
-                right = true; 
-            }
-        }
-        else if (tree->depth % 3 == 1)
-        {
-            if (point.y <= tree->axisLocation && tree->leftChild != nullptr)
-            {
-                //check left
-                currentBest = nearestNeighbour(tree->leftChild, point, currentBest);
-                left = true;
-            }
-            else if (tree->rightChild != nullptr)
-                
-            {
-                //check y
-                currentBest = nearestNeighbour(tree->rightChild, point, currentBest);
-                right = true;
-            }
-        }
-        else
-        {
-            if (point.z <= tree->axisLocation && tree->leftChild != nullptr)
-            {
-                //check left
-                currentBest = nearestNeighbour(tree->leftChild, point, currentBest);
-                left = true;
-            }
-            else if (tree->rightChild != nullptr)
-                
-            {
-                //check y
-                currentBest = nearestNeighbour(tree->rightChild, point, currentBest);
-                right = true;
-            }
+        median = numPts / 2;
+        lNum = (numPts / 2) - 1;
+        rNum = numPts / 2;
+    }
+    
+    if (!(numPts == 2))
+    {
+        v3* leftList = (v3* )malloc(sizeof(v3) * lNum);
+        memcpy(leftList, points, sizeof(v3) * lNum);
+        v3* rightList = (v3* )malloc(sizeof(v3) * rNum);;
+        memcpy(rightList, &points[median], sizeof(v3) * rNum);
+        
+        return node(depth,
+                    KDTree(lNum, leftList, depth+1),
+                    KDTree(rNum, rightList, depth+1),
+                    points[median - 1]);
+    }
+    else
+    {
+        return node(depth+1,
+                    KDTree(1, &points[0], depth+1),
+                    NULL,
+                    points[1]);
+    }
+    
+}
 
-            
+internal std::string print(Node* node)
+{
+    std::string out = "";
+    if (node->rightChild != NULL)
+    {
+        out.append(print(node->rightChild));
+    }
+    std::string temp = "\n";
+    for (int i = 0; i < node->depth; i++)
+    {
+        temp.append("    ");
+    }
+    temp.append(std::to_string(node->value.x) + " " +
+                std::to_string(node->value.y) + " " +
+                std::to_string(node->value.z));
+    out.append(temp);
+
+    if (node->leftChild != NULL)
+    {
+        out.append(print(node->leftChild));
+    }
+    return out;
+}
+
+struct Best
+{
+    Node* n;
+    f32 d;
+};
+
+internal inline Best best(Node* node, f32 dist)
+{
+    Best out;
+    out.n = node;
+    out.d = dist;
+    return out;
+};
+
+
+internal void nearestNeighbour(v3* query, Node* node, Best* best)
+{
+    f32 dist = distSq(node->value, *query);
+    b32 left = false;
+    b32 right = false;
+                                            
+    if (node->leftChild == NULL && node->rightChild == NULL && dist < best->d)
+    {
+        best->n = node;
+        best->d = dist;
+        return;
+    }
+    else
+    {
+        switch (node->depth % 3)
+        {
+            case 0:
+                if (query->x < node->value.x && node->leftChild != NULL)
+                {
+                    nearestNeighbour(query, node->leftChild, best);
+                    left = true;
+                }
+                else if (node->rightChild != NULL)
+                {
+                    nearestNeighbour(query, node->rightChild, best);
+                    right = true;   
+                }
+                break;
+            case 1:
+                if (query->y < node->value.y && node->leftChild != NULL)
+                {
+                    nearestNeighbour(query, node->leftChild, best);
+                    left = true;
+                }
+                else if (node->rightChild != NULL)
+                {
+                    nearestNeighbour(query, node->rightChild, best);
+                    right = true;   
+                }
+                break;
+            case 2:
+                if (query->z < node->value.z && node->leftChild != NULL)
+                {
+                    nearestNeighbour(query, node->leftChild, best);
+                    left = true;
+                }
+                else if (node->rightChild != NULL)
+                {
+                    nearestNeighbour(query, node->rightChild, best);
+                    right = true;   
+                }
+                break;
         }
     }
-    if (!right && left)
+    f32 tempDist = distSq(node->value, *query);
+    if (tempDist < best->d)
     {
-        if (tree->depth % 3 == 0)
+        best->n = node;
+        best->d = tempDist;
+    }    
+    if (left)
+    {
+        switch (node->depth % 3)
         {
-            if (dist(vec3(point.x, 0, 0), vec3(tree->axisLocation, 0, 0)) < dist(currentBest, point))
-            {
-                currentBest = nearestNeighbour(tree->rightChild, point, currentBest);
-            }
-        }
-        else if (tree->depth % 3 == 1)
-        {
-            if (dist(vec3(0, point.y, 0), vec3(0, tree->axisLocation, 0)) < dist(currentBest, point))
-            {
-                currentBest = nearestNeighbour(tree->rightChild, point, currentBest);
-            }
-        }
-        else if (tree->depth % 3 == 2)
-        {
-           if (dist(vec3(0, 0, point.z), vec3(0, 0, tree->axisLocation)) < dist(currentBest, point))
-            {
-                currentBest = nearestNeighbour(tree->rightChild, point, currentBest);
-            }
+            case 0:
+                if (fDist(query->x, node->value.x) < best->d && node->rightChild != NULL)
+                {
+                    nearestNeighbour(query, node->rightChild, best);
+                }
+                break;
+            case 1:
+                if (fDist(query->y, node->value.y) < best->d && node->rightChild != NULL)
+                {
+                    nearestNeighbour(query, node->rightChild, best);
+                }
+                break;
+            case 2:
+                if (fDist(query->z, node->value.z) < best->d && node->rightChild != NULL)
+                {
+                    nearestNeighbour(query, node->rightChild, best);
+                }
+                break;
         }
     }
     else if (right)
     {
-    
-        if (tree->depth % 3 == 0)
+        switch (node->depth % 3)
         {
-            if (dist(vec3(point.x, 0, 0), vec3(tree->axisLocation, 0, 0)) < dist(currentBest, point))
-            {
-                currentBest = nearestNeighbour(tree->leftChild, point, currentBest);
-            }
+            case 0:
+                if (fDist(query->x, node->value.x) < best->d && node->leftChild != NULL)
+                {
+                    nearestNeighbour(query, node->rightChild, best);
+                }
+                break;
+            case 1:
+                if (fDist(query->y, node->value.y) < best->d && node->leftChild != NULL)
+                {
+                    nearestNeighbour(query, node->rightChild, best);
+                }
+                break;
+            case 2:
+                if (fDist(query->z, node->value.z) < best->d && node->leftChild != NULL)
+                {
+                    nearestNeighbour(query, node->rightChild, best);
+                }
+                break;
         }
-        else if (tree->depth % 3 == 1)
-        {
-            if (dist(vec3(0, point.y, 0), vec3(0, tree->axisLocation, 0)) < dist(currentBest, point))
-            {
-                currentBest = nearestNeighbour(tree->leftChild, point, currentBest);
-            }
-        }
-        else if (tree->depth % 3 == 2)
-        {
-           if (dist(vec3(0, 0, point.z), vec3(0, 0, tree->axisLocation)) < dist(currentBest, point))
-            {
-                currentBest = nearestNeighbour(tree->leftChild, point, currentBest);
-            }
-        }
-        
     }
-    return currentBest;
+    return;
 }

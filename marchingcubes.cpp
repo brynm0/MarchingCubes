@@ -12,7 +12,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <cstring>
-#include <CL/cl.h>
 #include <errno.h>
 #include <vector>
 #include "kdTree.cpp"
@@ -551,7 +550,7 @@ internal int readCrv(const char* filepath, std::vector<std::vector<v3>>* out)
         return totalNumPts;
 }
 
-internal b32 writeObj(const char* filepath, Triangle** data, int dataLength, int numTris)
+internal b32 writeObj(const char* filepath, Triangle data[][5], int dataLength, int* endIndexArray)
 {
     //use fprintf
     FILE *fout = fopen(filepath, "w");
@@ -565,11 +564,9 @@ internal b32 writeObj(const char* filepath, Triangle** data, int dataLength, int
         fprintf(fout, "g object_1\n");
         for(int i = 0; i < dataLength; i++)
         {
-            for (int j = 0; j < 5; j++)
+            for (int j = 0; j < endIndexArray[i]; j++)
             {
                 Triangle* currTri = &(data[i][j]);
-                
-                if (currTri->verts[0].x == 0.0f && currTri->verts[0].y == 0.0f && currTri->verts[0].z == 0.0f)  { break; }
                 totalFaces++;;
                 fprintf(fout,
                         "v %g %g %g\n",
@@ -605,44 +602,23 @@ internal b32 writeObj(const char* filepath, Triangle** data, int dataLength, int
     }
 }
 
+#include <sys/time.h>
+
+
 int main(int argc, char** argv)
-{    
-
-    cl_uint platformIdCount = 0;
-    clGetPlatformIDs (0, nullptr, &platformIdCount);
-    
-    std::vector<cl_platform_id> platformIds (platformIdCount);
-    clGetPlatformIDs (platformIdCount, platformIds.data (), nullptr);
-    cl_uint deviceIdCount = 0;
-    clGetDeviceIDs (platformIds [0], CL_DEVICE_TYPE_ALL, 0, nullptr, &deviceIdCount);
-    std::vector<cl_device_id> deviceIds (deviceIdCount);
-    clGetDeviceIDs (platformIds [0], CL_DEVICE_TYPE_ALL, deviceIdCount, deviceIds.data (), nullptr);
-    cl_int error;
-    const cl_context_properties contextProperties [] =
-        {
-            CL_CONTEXT_PLATFORM,
-            reinterpret_cast<cl_context_properties> (platformIds [0]),
-            0, 0
-        };
-
-    cl_context context = clCreateContext (
-        contextProperties, deviceIdCount,
-        deviceIds.data (), nullptr,
-        nullptr, &error);
-
-    
-    
-    printf("initiating cube array\n");
-
-    
+{
     std::vector<std::vector<v3>> curvePop;
     int num = readCrv("/home/bryn/SyntheticForms/Output/Curves/1.txt", &curvePop);
+    printf("%d\n",num);
     std::unordered_map<v3, int*, v3Hash> map;
-    CurveCollection c = curveCollection(curvePop, num, &map);
-    printf("curve dist %f\n",getDistFromCurve(c, vec3(0,0,0)));
+    std::vector<std::vector<v3>> vec;
+    CurveCollection curves = curveCollection(curvePop, num, &map);
     v3* extents = (v3*)malloc(sizeof(v3) * 2);
-    getBBox(&c, extents);
-    v3 midpoint = vec3(extents[0].x +extents[1].x, extents[0].y +extents[1].y, extents[0].z +extents[1].z);
+    getBBox(&curves, extents);
+    v3 midpoint = vec3((extents[0].x +extents[1].x) / 2,
+                       (extents[0].y + extents[1].y) / 2,
+                       (extents[0].z +extents[1].z) / 2);
+    
     float longestAxis;
     if (fabs(extents[0].x - extents[1].x) > fabs(extents[0].y - extents[1].y) &&
         fabs(extents[0].x - extents[1].x) > fabs(extents[0].z - extents[1].z))
@@ -657,22 +633,34 @@ int main(int argc, char** argv)
     {
         longestAxis = fabs(extents[0].z - extents[1].z);
     }
+     v3 posBound = vec3(midpoint.x + longestAxis, midpoint.y + longestAxis, midpoint.z + longestAxis);
+     v3 negBound = vec3(midpoint.x - longestAxis, midpoint.y - longestAxis, midpoint.z - longestAxis);
 
-    
-    
-    v3 posBound = vec3(midpoint.x + longestAxis, midpoint.y + longestAxis, midpoint.z + longestAxis);
-    v3 negBound = vec3(midpoint.x - longestAxis, midpoint.y - longestAxis, midpoint.z - longestAxis);
+     for (int i = 0; i < 125000; i++)
+     {
+         int a = 5000;
+         f32 rand1 = ((float)rand()/(float)(RAND_MAX)) * a;
+         f32 rand2 = ((float)rand()/(float)(RAND_MAX)) * a;
+         f32 rand3 = ((float)rand()/(float)(RAND_MAX)) * a;
+         v3 rand = vec3(rand1, rand2, rand3);
+         Best b = best(NULL, FLT_MAX);
+
+         if (i % 500 == 0)
+         {
+             printf("%d / 125000\n", i);
+         }
+         nearestNeighbour(&rand, curves.curvePointTree, &b);
+        
+     }
+     
+     //posBound = vec3(2,2,2);
+     //negBound = vec3(-2,-2,-2);
     int cubesPerSide = 50;
     int totalCubes = cubesPerSide * cubesPerSide * cubesPerSide;
     int numVerts = cubesPerSide + 1;
     int totalVerts = numVerts * numVerts * numVerts;
     f32 width = (posBound.x - negBound.x) / (f32)cubesPerSide;
     GridCell* cubeArray = (GridCell*)malloc(sizeof(GridCell) * (totalCubes));
-
-int totalNumTris = 0;
-    //Triangle tArray[totalCubes][5];
-    
-    Triangle** tArray = (Triangle**)malloc(totalCubes * sizeof(Triangle*));
     
     for (int i = 0; i < cubesPerSide; i++)
     {
@@ -696,6 +684,8 @@ int totalNumTris = 0;
                 cubeArray[index].vertices[5] = vec3(base.x + width, base.y,         base.z + width);
                 cubeArray[index].vertices[6] = vec3(base.x + width, base.y + width, base.z + width);
                 cubeArray[index].vertices[7] = vec3(base.x,         base.y + width, base.z + width);
+
+                
                 if (index % 100 == 0)
                 {
                     printf("%d / %d\n", index, totalCubes);
@@ -703,21 +693,28 @@ int totalNumTris = 0;
                 for (int valIndex = 0; valIndex < 8; valIndex++)
                 {
                     //cubeArray[index].val[valIndex] = sdSphere(cubeArray[index].vertices[valIndex], 1);     
-                    cubeArray[index].val[valIndex] = getDistFromCurve(c, cubeArray[index].vertices[valIndex]);   
+                    cubeArray[index].val[valIndex] = getDistFromCurve(curves, cubeArray[index].vertices[valIndex]);   
                 }
-                tArray[index] = (Triangle*)malloc(sizeof(Triangle) * 5);
-                int currTris = marchCube(cubeArray[index], 50, tArray[index]);
-                totalNumTris += currTris;
                 
             }
         }
     }
+
+        
+    int totalNumTris = 0;
+    Triangle tArray[totalCubes][5];
+    int endIndexArray[totalCubes];
     printf("beginning march\n");
+    for (int index = 0; index < totalCubes; index++)
+    {
+        int currTris = marchCube(cubeArray[index], 50, tArray[index]);
+        totalNumTris += currTris;
+        endIndexArray[index] = currTris;        
+    }
     printf("total tris %d\n", totalNumTris);
     printf("ending march\n");
-    writeObj("out.obj", tArray, totalCubes, totalNumTris);
+    writeObj("out.obj", tArray, totalCubes, endIndexArray);
     free(cubeArray);
     //free(pointsBuffer);
-    
     return 0;
 }
